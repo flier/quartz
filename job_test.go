@@ -16,7 +16,7 @@ func TestJobKey(t *testing.T) {
 	})
 
 	Convey("Given a grouped JobKey", t, func() {
-		key := NewJobGroupKey("name", "group")
+		key := NewGroupJobKey("name", "group")
 
 		So(key.Name(), ShouldEqual, "name")
 		So(key.Group(), ShouldEqual, "group")
@@ -98,8 +98,8 @@ func TestJobBuilder(t *testing.T) {
 			So(b.Build().Key().String(), ShouldEqual, "group.name")
 		})
 
-		Convey("WithKey -> JobDetail.Key()", func() {
-			b.WithKey(NewJobKey("name"))
+		Convey("WithJobKey -> JobDetail.Key()", func() {
+			b.WithJobKey(NewJobKey("name"))
 
 			So(b.Build().Key().String(), ShouldEqual, "DEFAULT.name")
 		})

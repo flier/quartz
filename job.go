@@ -1,10 +1,6 @@
 package quartz
 
 import (
-	"crypto/md5"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -97,17 +93,13 @@ type JobDataMap interface {
 	PutAll(dataMap JobDataMap) JobDataMap
 }
 
-const (
-	DEFAULT_GROUP = "DEFAULT"
-)
-
 type JobKey []string
 
 func NewJobKey(name string) JobKey {
 	return []string{DEFAULT_GROUP, name}
 }
 
-func NewJobGroupKey(name, group string) JobKey {
+func NewGroupJobKey(name, group string) JobKey {
 	return []string{group, name}
 }
 
@@ -116,15 +108,7 @@ func NewUniqueKey(group string) JobKey {
 		group = DEFAULT_GROUP
 	}
 
-	buf := make([]byte, 16)
-
-	rand.Read(buf)
-
-	hash := md5.Sum([]byte(group))
-
-	name := fmt.Sprintf("%s-%s", hex.EncodeToString(hash[12:]), hex.EncodeToString(buf))
-
-	return []string{group, name}
+	return []string{group, newUniqueName(group)}
 }
 
 func (key JobKey) Group() string  { return key[0] }
@@ -239,12 +223,12 @@ func (b *JobBuilder) WithIdentity(name string) *JobBuilder {
 }
 
 func (b *JobBuilder) WithGroupIdentity(name, group string) *JobBuilder {
-	b.Key = NewJobGroupKey(name, group)
+	b.Key = NewGroupJobKey(name, group)
 
 	return b
 }
 
-func (b *JobBuilder) WithKey(key JobKey) *JobBuilder {
+func (b *JobBuilder) WithJobKey(key JobKey) *JobBuilder {
 	b.Key = key
 
 	return b
