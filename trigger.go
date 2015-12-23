@@ -2,19 +2,9 @@ package quartz
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
-)
-
-type TriggerState int
-
-const (
-	NONE TriggerState = iota
-	NORMAL
-	PAUSED
-	COMPLETE
-	ERROR
-	BLOCKED
 )
 
 var (
@@ -83,14 +73,14 @@ type OperableTrigger interface {
 	SetPreviousFireTime(previousFireTime time.Time)
 }
 
-type TriggerKey []string
+type TriggerKey []byte
 
 func NewTriggerKey(name string) TriggerKey {
-	return []string{DEFAULT_GROUP, name}
+	return NewGroupTriggerKey(name, DEFAULT_GROUP)
 }
 
 func NewGroupTriggerKey(name, group string) TriggerKey {
-	return []string{group, name}
+	return TriggerKey(fmt.Sprintf("%s.%s", group, name))
 }
 
 func NewUniqueTriggerKey(group string) TriggerKey {
@@ -98,12 +88,12 @@ func NewUniqueTriggerKey(group string) TriggerKey {
 		group = DEFAULT_GROUP
 	}
 
-	return []string{group, newUniqueName(group)}
+	return NewGroupTriggerKey(newUniqueName(group), group)
 }
 
-func (key TriggerKey) Group() string  { return key[0] }
-func (key TriggerKey) Name() string   { return key[1] }
-func (key TriggerKey) String() string { return strings.Join(key, ".") }
+func (key TriggerKey) Name() string   { return strings.Split(string(key), ".")[1] }
+func (key TriggerKey) Group() string  { return strings.Split(string(key), ".")[0] }
+func (key TriggerKey) String() string { return string(key) }
 
 type abstractTrigger struct {
 	name     string

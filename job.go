@@ -1,7 +1,7 @@
 package quartz
 
 import (
-	"sort"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -63,44 +63,22 @@ type JobDetail interface {
 	JobBuilder() *JobBuilder
 }
 
-type JobDataEntry interface {
-	Key() string
-
-	Value() interface{}
-}
-
 type JobDataMap interface {
-	Dirty() bool
-
-	ClearDirtyFlag()
-
-	Empty() bool
-
-	Size() int
-
-	Keys() []string
-
-	Values() []interface{}
-
-	Entries() []JobDataEntry
-
-	Contains(key string) bool
-
-	Get(key string) interface{}
-
-	Put(key string, value interface{}) JobDataMap
-
-	PutAll(dataMap JobDataMap) JobDataMap
+	DirtyFlagMap
 }
 
-type JobKey []string
+type JobFactory interface {
+	NewJob(scheduler Scheduler) (Job, error)
+}
+
+type JobKey []byte
 
 func NewJobKey(name string) JobKey {
-	return []string{DEFAULT_GROUP, name}
+	return NewGroupJobKey(name, DEFAULT_GROUP)
 }
 
 func NewGroupJobKey(name, group string) JobKey {
-	return []string{group, name}
+	return JobKey(fmt.Sprintf("%s.%s", group, name))
 }
 
 func NewUniqueKey(group string) JobKey {
@@ -108,12 +86,12 @@ func NewUniqueKey(group string) JobKey {
 		group = DEFAULT_GROUP
 	}
 
-	return []string{group, newUniqueName(group)}
+	return NewGroupJobKey(newUniqueName(group), group)
 }
 
-func (key JobKey) Group() string  { return key[0] }
-func (key JobKey) Name() string   { return key[1] }
-func (key JobKey) String() string { return strings.Join(key, ".") }
+func (key JobKey) Name() string   { return strings.Split(string(key), ".")[1] }
+func (key JobKey) Group() string  { return strings.Split(string(key), ".")[0] }
+func (key JobKey) String() string { return string(key) }
 
 type jobDetail struct {
 	key     JobKey
@@ -130,81 +108,8 @@ func (d *jobDetail) JobDataMap() JobDataMap { return d.dataMap }
 
 func (d *jobDetail) JobBuilder() *JobBuilder { return d.builder }
 
-type jobDataEntry struct {
-	key   string
-	value interface{}
-}
-
-func (e *jobDataEntry) Key() string { return e.key }
-
-func (e *jobDataEntry) Value() interface{} { return e.value }
-
-type jobDataMap struct {
-	entries map[string]interface{}
-	dirty   bool
-}
-
 func NewJobDataMap() JobDataMap {
-	return &jobDataMap{entries: make(map[string]interface{})}
-}
-
-func (m *jobDataMap) Dirty() bool { return m.dirty }
-
-func (m *jobDataMap) ClearDirtyFlag() { m.dirty = false }
-
-func (m *jobDataMap) Empty() bool { return len(m.entries) == 0 }
-
-func (m *jobDataMap) Size() int { return len(m.entries) }
-
-func (m *jobDataMap) Keys() (keys []string) {
-	for key, _ := range m.entries {
-		keys = append(keys, key)
-	}
-
-	sort.Sort(sort.StringSlice(keys))
-
-	return
-}
-
-func (m *jobDataMap) Values() (values []interface{}) {
-	for _, value := range m.entries {
-		values = append(values, value)
-	}
-
-	return
-}
-
-func (m *jobDataMap) Entries() (entries []JobDataEntry) {
-	for key, value := range m.entries {
-		entries = append(entries, &jobDataEntry{key, value})
-	}
-
-	return
-}
-
-func (m *jobDataMap) Contains(key string) bool {
-	_, exists := m.entries[key]
-
-	return exists
-}
-
-func (m *jobDataMap) Get(key string) interface{} { return m.entries[key] }
-
-func (m *jobDataMap) Put(key string, value interface{}) JobDataMap {
-	if v, exists := m.entries[key]; !exists || v != value {
-		m.entries[key] = value
-		m.dirty = true
-	}
-
-	return m
-}
-
-func (m *jobDataMap) PutAll(dataMap JobDataMap) JobDataMap {
-	for _, entry := range dataMap.Entries() {
-		m.Put(entry.Key(), entry.Value())
-	}
-
-	return m
+	return &dirtyFlagMap{entries: make(map[string]interface{})}
 }
 
 //

@@ -127,7 +127,10 @@ func TestTriggerBuilder(t *testing.T) {
 		})
 
 		Convey("UsingJobDataMap -> Trigger.JobDataMap()", func() {
-			b.UsingJobDataMap(NewJobDataMap().Put("key", "value"))
+			m := NewJobDataMap()
+			m.Put("key", "value")
+
+			b.UsingJobDataMap(m)
 
 			So(b.Build().JobDataMap().Get("key"), ShouldEqual, "value")
 		})
@@ -135,7 +138,10 @@ func TestTriggerBuilder(t *testing.T) {
 		Convey("SetJobDataMap -> Trigger.JobDataMap()", func() {
 			b.UsingJobData("nonexists", "value")
 
-			b.SetJobDataMap(NewJobDataMap().Put("key", "value"))
+			m := NewJobDataMap()
+			m.Put("key", "value")
+
+			b.SetJobDataMap(m)
 
 			dm := b.Build().JobDataMap()
 

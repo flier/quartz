@@ -65,7 +65,12 @@ func TestJobDetail(t *testing.T) {
 		})
 
 		Convey("Put a DataMap", func() {
-			m.PutAll(NewJobDataMap().Put("foo", "bar").Put("abc", "def").Put("key", "another"))
+			d := NewJobDataMap()
+			d.Put("foo", "bar")
+			d.Put("abc", "def")
+			d.Put("key", "another")
+
+			m.PutAll(d)
 
 			So(m.Empty(), ShouldBeFalse)
 			So(m.Size(), ShouldEqual, 3)
@@ -117,7 +122,10 @@ func TestJobBuilder(t *testing.T) {
 		})
 
 		Convey("UsingJobDataMap -> JobDetail.JobDataMap()", func() {
-			b.UsingJobDataMap(NewJobDataMap().Put("key", "value"))
+			m := NewJobDataMap()
+			m.Put("key", "value")
+
+			b.UsingJobDataMap(m)
 
 			So(b.Build().JobDataMap().Get("key"), ShouldEqual, "value")
 		})
@@ -125,7 +133,9 @@ func TestJobBuilder(t *testing.T) {
 		Convey("SetJobDataMap -> JobDetail.JobDataMap()", func() {
 			b.UsingJobData("nonexists", "value")
 
-			b.SetJobDataMap(NewJobDataMap().Put("key", "value"))
+			m := NewJobDataMap()
+			m.Put("key", "value")
+			b.SetJobDataMap(m)
 
 			dm := b.Build().JobDataMap()
 
