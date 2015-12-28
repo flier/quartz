@@ -39,14 +39,14 @@ func TestJobDetail(t *testing.T) {
 
 		So(m, ShouldNotBeNil)
 		So(m.Empty(), ShouldBeTrue)
-		So(m.Size(), ShouldEqual, 0)
+		So(m.Len(), ShouldEqual, 0)
 		So(m.Dirty(), ShouldBeFalse)
 
 		Convey("Put a item", func() {
 			m.Put("key", "value")
 
 			So(m.Empty(), ShouldBeFalse)
-			So(m.Size(), ShouldEqual, 1)
+			So(m.Len(), ShouldEqual, 1)
 			So(m.Dirty(), ShouldBeTrue)
 			So(m.Contains("key"), ShouldBeTrue)
 			So(m.Get("key"), ShouldEqual, "value")
@@ -73,7 +73,7 @@ func TestJobDetail(t *testing.T) {
 			m.PutAll(d)
 
 			So(m.Empty(), ShouldBeFalse)
-			So(m.Size(), ShouldEqual, 3)
+			So(m.Len(), ShouldEqual, 3)
 			So(m.Dirty(), ShouldBeTrue)
 			So(m.Contains("key"), ShouldBeTrue)
 			So(m.Get("key"), ShouldEqual, "another")

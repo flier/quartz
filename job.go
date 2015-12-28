@@ -1,6 +1,7 @@
 package quartz
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"time"
@@ -54,9 +55,13 @@ type JobExecutionContext interface {
 // JobDetails are to be created/defined with JobBuilder.
 //
 type JobDetail interface {
+	Cloneable
+
 	Key() JobKey
 
 	Description() string
+
+	Durable() bool
 
 	JobDataMap() JobDataMap
 
@@ -89,13 +94,15 @@ func NewUniqueKey(group string) JobKey {
 	return NewGroupJobKey(newUniqueName(group), group)
 }
 
-func (key JobKey) Name() string   { return strings.Split(string(key), ".")[1] }
-func (key JobKey) Group() string  { return strings.Split(string(key), ".")[0] }
-func (key JobKey) String() string { return string(key) }
+func (key JobKey) Name() string             { return strings.Split(string(key), ".")[1] }
+func (key JobKey) Group() string            { return strings.Split(string(key), ".")[0] }
+func (key JobKey) String() string           { return string(key) }
+func (key JobKey) Equals(other JobKey) bool { return bytes.Equal(key, other) }
 
 type jobDetail struct {
 	key     JobKey
 	desc    string
+	durable bool
 	dataMap JobDataMap
 	builder *JobBuilder
 }
@@ -104,12 +111,24 @@ func (d *jobDetail) Key() JobKey { return d.key }
 
 func (d *jobDetail) Description() string { return d.desc }
 
+func (d *jobDetail) Durable() bool { return d.durable }
+
 func (d *jobDetail) JobDataMap() JobDataMap { return d.dataMap }
 
 func (d *jobDetail) JobBuilder() *JobBuilder { return d.builder }
 
+func (d *jobDetail) Clone() interface{} {
+	clone := *d
+
+	if d.dataMap != nil {
+		clone.dataMap = d.dataMap.Clone().(JobDataMap)
+	}
+
+	return &clone
+}
+
 func NewJobDataMap() JobDataMap {
-	return &dirtyFlagMap{entries: make(map[string]interface{})}
+	return JobDataMap(NewDirtyFlagMap())
 }
 
 //

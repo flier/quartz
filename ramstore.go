@@ -2,6 +2,7 @@ package quartz
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -57,11 +58,11 @@ type RAMJobStore struct {
 	triggersByKey       TriggerMap
 	jobsByGroup         map[string]JobMap
 	triggersByGroup     map[string]TriggerMap
-	timeTriggers        TreeSet
+	timeTriggers        Set
 	triggers            []*triggerWrapper
-	pausedTriggerGroups HashSet
-	pausedJobGroups     HashSet
-	blockedJobs         HashSet
+	pausedTriggerGroups Set
+	pausedJobGroups     Set
+	blockedJobs         Set
 }
 
 func NewRAMJobStore() *RAMJobStore {
@@ -70,11 +71,9 @@ func NewRAMJobStore() *RAMJobStore {
 		triggersByKey:   make(TriggerMap),
 		jobsByGroup:     make(map[string]JobMap),
 		triggersByGroup: make(map[string]TriggerMap),
-		timeTriggers: TreeSet{
-			compare: func(lhs, rhs interface{}) bool {
-				return lhs.(Trigger).Key().String() < rhs.(Trigger).Key().String()
-			},
-		},
+		timeTriggers: NewTreeSet(func(lhs, rhs interface{}) int {
+			return strings.Compare(lhs.(Trigger).Key().String(), rhs.(Trigger).Key().String())
+		}),
 		pausedTriggerGroups: NewHashSet(),
 		pausedJobGroups:     NewHashSet(),
 		blockedJobs:         NewHashSet(),
@@ -186,14 +185,10 @@ func (s *RAMJobStore) StoreTrigger(trigger OperableTrigger, replaceExisting bool
 			return triggerAlreadyExistsError(trigger)
 		}
 
-		if _, err := s.removeTrigger(trigger.Key(), false); err != nil {
-			return err
-		}
+		s.removeTrigger(trigger.Key(), false)
 	}
 
-	if job, err := s.RetrieveJob(trigger.JobKey()); err != nil {
-		return err
-	} else if job == nil {
+	if job := s.RetrieveJob(trigger.JobKey()); job == nil {
 		return jobPersistenceError(trigger.JobKey())
 	}
 
@@ -228,12 +223,49 @@ func (s *RAMJobStore) StoreTrigger(trigger OperableTrigger, replaceExisting bool
 	return nil
 }
 
-func (s *RAMJobStore) RemoveTrigger(key TriggerKey) (bool, error) {
+func (s *RAMJobStore) RemoveTrigger(key TriggerKey) bool {
 	return s.removeTrigger(key, true)
 }
 
-func (s *RAMJobStore) removeTrigger(key TriggerKey, removeOrphanedJob bool) (bool, error) {
-	return false, nil
+func (s *RAMJobStore) removeTrigger(key TriggerKey, removeOrphanedJob bool) bool {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	_, exists := s.triggersByKey[key.String()]
+
+	if exists {
+		delete(s.triggersByKey, key.String())
+
+		if triggers, exists := s.triggersByGroup[key.Group()]; exists && len(triggers) > 0 {
+			delete(triggers, key.String())
+
+			if len(triggers) == 0 {
+				delete(s.triggersByGroup, key.Group())
+			}
+		}
+
+		var tw *triggerWrapper
+
+		for i, trigger := range s.triggers {
+			if !trigger.Key().Equals(key) {
+				tw = trigger
+				s.triggers = append(s.triggers[:i], s.triggers[i+1:]...)
+			}
+		}
+
+		s.timeTriggers.Remove(tw)
+
+		if removeOrphanedJob {
+			jw, exists := s.jobsByKey[tw.JobKey().String()]
+			triggers := s.TriggersForJob(tw.JobKey())
+
+			if len(triggers) == 0 && exists && jw.jobDetail.Durable() {
+				s.RemoveJob(jw.Key())
+			}
+		}
+	}
+
+	return exists
 }
 
 func (s *RAMJobStore) RemoveJobs(keys []JobKey) (bool, error) {
@@ -260,28 +292,59 @@ func (s *RAMJobStore) RemoveTriggers(keys []TriggerKey) (bool, error) {
 	allFound := true
 
 	for _, key := range keys {
-		if found, err := s.RemoveTrigger(key); err != nil {
-			return false, err
-		} else {
-			allFound = found && allFound
-		}
+		allFound = s.RemoveTrigger(key) && allFound
 	}
 
 	return allFound, nil
 }
 
-func (s *RAMJobStore) RetrieveJob(key JobKey) (JobDetail, error) {
-	return nil, nil
-}
+func (s *RAMJobStore) RetrieveJob(key JobKey) JobDetail {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-func (s *RAMJobStore) TriggersForJob(key JobKey) []OperableTrigger {
+	if jw, exists := s.jobsByKey[key.String()]; exists {
+		return jw.jobDetail.Clone().(JobDetail)
+	}
+
 	return nil
 }
 
+func (s *RAMJobStore) RetrieveTrigger(key TriggerKey) OperableTrigger {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if tw, exists := s.triggersByKey[key.String()]; exists {
+		return tw.trigger.Clone().(OperableTrigger)
+	}
+
+	return nil
+}
+
+func (s *RAMJobStore) TriggersForJob(key JobKey) (triggers []OperableTrigger) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for _, tw := range s.triggers {
+		if tw.JobKey().Equals(key) {
+			triggers = append(triggers, tw.trigger.Clone().(OperableTrigger))
+		}
+	}
+
+	return
+}
+
 func (s *RAMJobStore) CheckJobExists(key JobKey) bool {
-	return false
+	s.lock.Lock()
+	jw, exists := s.jobsByKey[key.String()]
+	s.lock.Unlock()
+
+	return exists && jw != nil
 }
 
 func (s *RAMJobStore) CheckTriggerExists(key TriggerKey) bool {
-	return false
+	s.lock.Lock()
+	tw, exists := s.triggersByKey[key.String()]
+	s.lock.Unlock()
+
+	return exists && tw != nil
 }

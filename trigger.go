@@ -1,6 +1,7 @@
 package quartz
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -66,6 +67,7 @@ type MutableTrigger interface {
 }
 
 type OperableTrigger interface {
+	Cloneable
 	MutableTrigger
 
 	SetNextFireTime(nextFireTime time.Time)
@@ -91,9 +93,10 @@ func NewUniqueTriggerKey(group string) TriggerKey {
 	return NewGroupTriggerKey(newUniqueName(group), group)
 }
 
-func (key TriggerKey) Name() string   { return strings.Split(string(key), ".")[1] }
-func (key TriggerKey) Group() string  { return strings.Split(string(key), ".")[0] }
-func (key TriggerKey) String() string { return string(key) }
+func (key TriggerKey) Name() string                 { return strings.Split(string(key), ".")[1] }
+func (key TriggerKey) Group() string                { return strings.Split(string(key), ".")[0] }
+func (key TriggerKey) String() string               { return string(key) }
+func (key TriggerKey) Equals(other TriggerKey) bool { return bytes.Equal(key, other) }
 
 type abstractTrigger struct {
 	name     string
